@@ -265,47 +265,47 @@ def generate_insights(dataset_id: str, token: str = Depends(verify_token)):
         if not api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing.")
 
-                # Use the new GenerativeModel API
-                model = genai.GenerativeModel("gemini-pro")
+        # Use the new GenerativeModel API
+        model = genai.GenerativeModel("gemini-pro")
 
-                summary_stats = df.describe(include='all').to_string()
+        summary_stats = df.describe(include='all').to_string()
 
-                prompt = f"""
-                You are an expert data analyst AI. Analyze these dataset summary statistics:
-                {summary_stats[:2000]}
-        
-                Generate exactly 4 actionable insights. Your response MUST be a valid JSON array of objects with this structure:
-                [
-                    {{
-                        "title": "Short title",
-                        "desc": "Detailed 2 sentence explanation of the finding",
-                        "type": "opportunity, observation, recommendation, or alert",
-                        "confidence": 80 to 99
-                    }}
-                ]
-                Do not wrap the JSON in markdown blocks. Return ONLY the raw JSON array.
-                """
+        prompt = f"""
+        You are an expert data analyst AI. Analyze these dataset summary statistics:
+        {summary_stats[:2000]}
 
-                response = model.generate_content(contents=prompt)
+        Generate exactly 4 actionable insights. Your response MUST be a valid JSON array of objects with this structure:
+        [
+          {{
+            "title": "Short title",
+            "desc": "Detailed 2 sentence explanation of the finding",
+            "type": "opportunity, observation, recommendation, or alert",
+            "confidence": 80 to 99
+          }}
+        ]
+        Do not wrap the JSON in markdown blocks. Return ONLY the raw JSON array.
+        """
 
-                # Clean the response to parse JSON reliably safely
-                raw_text = ""
-                try:
-                        raw_text = response.text.replace('```json', '').replace('```', '').strip()
-                except ValueError as ve:
-                        print("VALUE ERROR EXTRACTING TEXT. Response:", response)
-                        raise ValueError("Gemini returned invalid response. It may have been blocked by safety settings.")
-            
+        response = model.generate_content(contents=prompt)
+
+        # Clean the response to parse JSON reliably safely
+        raw_text = ""
+        try:
+            raw_text = response.text.replace('```json', '').replace('```', '').strip()
+        except ValueError as ve:
+            print("VALUE ERROR EXTRACTING TEXT. Response:", response)
+            raise ValueError("Gemini returned invalid response. It may have been blocked by safety settings.")
+
         print("--- RAW LLM RESPONSE ---")
         print(raw_text)
         print("------------------------")
-        
+
         import re
         match = re.search(r'\[.*\]', raw_text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
         return json.loads(raw_text)
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
