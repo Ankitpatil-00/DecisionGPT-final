@@ -222,10 +222,11 @@ def get_forecast_validation(dataset_id: str, value_col: str, token: str = Depend
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing.")
 
         # genai already configured at startup when available; instantiate client without passing the key
-        client = genai.Client()
-        
+        # Use the GenerativeModel interface per updated genai usage
+        model = genai.GenerativeModel("gemini-pro")
+
         summary_stats = df.describe(include='all').to_string()
-        
+
         prompt = f"""
         You are a seasoned Business Operations Director analyzing a corporate forecast for the `{value_col}` metric.
         
@@ -240,12 +241,9 @@ def get_forecast_validation(dataset_id: str, value_col: str, token: str = Depend
         - Relate the explanation directly back to the metrics and trends seen in the Dataset Summary provided above to show it is tailored to this specific company.
         - Do not write any intro/outro text, just the bullet points starting with appropriate emojis.
         """
-        
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        
+
+        response = model.generate_content(contents=prompt)
+
         return {"validation": response.text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation Error: {str(e)}")
@@ -267,37 +265,36 @@ def generate_insights(dataset_id: str, token: str = Depends(verify_token)):
         if not api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing.")
 
-        client = genai.Client()
+                # Use the new GenerativeModel API
+                model = genai.GenerativeModel("gemini-pro")
+
+                summary_stats = df.describe(include='all').to_string()
+
+                prompt = f"""
+                You are an expert data analyst AI. Analyze these dataset summary statistics:
+                {summary_stats[:2000]}
         
-        summary_stats = df.describe(include='all').to_string()
-        
-        prompt = f"""
-        You are an expert data analyst AI. Analyze these dataset summary statistics:
-        {summary_stats[:2000]}
-        
-        Generate exactly 4 actionable insights. Your response MUST be a valid JSON array of objects with this structure:
-        [
-          {{
-            "title": "Short title",
-            "desc": "Detailed 2 sentence explanation of the finding",
-            "type": "opportunity, observation, recommendation, or alert",
-            "confidence": 80 to 99
-          }}
-        ]
-        Do not wrap the JSON in markdown blocks. Return ONLY the raw JSON array.
-        """
-        
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        # Clean the response to parse JSON reliably safely
-        raw_text = ""
-        try:
-            raw_text = response.text.replace('```json', '').replace('```', '').strip()
-        except ValueError as ve:
-            print("VALUE ERROR EXTRACTING TEXT. Response:", response)
-            raise ValueError("Gemini returned invalid response. It may have been blocked by safety settings.")
+                Generate exactly 4 actionable insights. Your response MUST be a valid JSON array of objects with this structure:
+                [
+                    {{
+                        "title": "Short title",
+                        "desc": "Detailed 2 sentence explanation of the finding",
+                        "type": "opportunity, observation, recommendation, or alert",
+                        "confidence": 80 to 99
+                    }}
+                ]
+                Do not wrap the JSON in markdown blocks. Return ONLY the raw JSON array.
+                """
+
+                response = model.generate_content(contents=prompt)
+
+                # Clean the response to parse JSON reliably safely
+                raw_text = ""
+                try:
+                        raw_text = response.text.replace('```json', '').replace('```', '').strip()
+                except ValueError as ve:
+                        print("VALUE ERROR EXTRACTING TEXT. Response:", response)
+                        raise ValueError("Gemini returned invalid response. It may have been blocked by safety settings.")
             
         print("--- RAW LLM RESPONSE ---")
         print(raw_text)
@@ -330,8 +327,9 @@ def chat_with_data(chat: ChatMessage, token: str = Depends(verify_token)):
         if not api_key:
             return {"response": "Error: GEMINI_API_KEY environment variable is missing. Please provide it to enable the AI!"}
 
-        client = genai.Client()
-        
+        # Use the new GenerativeModel API
+        model = genai.GenerativeModel("gemini-pro")
+
         schema_info = f"Dataset size: {len(df)} rows. Columns: {list(df.columns)}."
         summary_stats = df.describe(include='all').to_string()
         
@@ -407,10 +405,7 @@ Analyze the request and provide your response strictly as a JSON object with the
 If the user's question is simple and doesn't require options, leave the 'options' array empty. Do NOT wrap the JSON in Markdown delimiters like ```json. Return ONLY the raw JSON string.
 """
         
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
+        response = model.generate_content(contents=prompt)
         
         # Rule-based validation and formatting
         try:

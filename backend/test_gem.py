@@ -11,7 +11,9 @@ if not _key:
 
 # Configure the genai library globally and create a client
 genai.configure(api_key=_key)
-client = genai.Client()
+
+# Use GenerativeModel API
+model = genai.GenerativeModel("gemini-pro")
 
 prompt = '''
 You are an expert data analyst AI. Analyze these dataset summary statistics:
@@ -30,10 +32,7 @@ Do not wrap the JSON in markdown blocks. Return ONLY the raw JSON array.
 '''
 
 try:
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt,
-    )
+    response = model.generate_content(contents=prompt)
     
     raw_text = response.text.replace('```json', '').replace('```', '').strip()
     print('RAW:', raw_text)
