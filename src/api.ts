@@ -1,4 +1,5 @@
-export const API_URL = 'http://localhost:8000/api';
+const _env = (import.meta as any)?.env;
+export const API_URL = _env?.VITE_API_URL ?? 'https://decisiongpt-final.onrender.com/api';
 
 const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('auth_token');
