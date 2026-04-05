@@ -362,12 +362,82 @@ def chat_with_data(chat: ChatMessage, token: str = Depends(verify_token)):
         except Exception:
             pass
             
-        prompt = f"You are a helpful data analyst AI. The user is asking about their dataset.\n\nContext ({schema_info}):\nSummary Stats:\n{summary_stats[:2000]}{forecast_context}\n\nUser asked: {chat.message}\nProvide a concise, helpful, and data-driven answer in clear markdown."
+        prompt = f"""
+You are a decision expert AI. The user is asking about their dataset.
+
+Context ({schema_info}):
+Summary Stats:
+{summary_stats[:2000]}{forecast_context}
+
+User asked: {chat.message}
+
+Analyze the request and provide your response strictly as a JSON object with the following schema:
+{{
+  "problem": "A brief summary of the problem or question the user is asking. If it's a simple informational question, state it simply.",
+  "reasoning_steps": [
+    "Step 1 of your chain of thought",
+    "Step 2...",
+    "Step 3..."
+  ],
+  "options": [
+    {{
+      "name": "Option 1",
+      "pros": ["Pro 1", "Pro 2"],
+      "cons": ["Con 1", "Con 2"]
+    }}
+  ],
+  "recommendation": "Your final, clear recommendation or answer.",
+  "confidence_score": "A number between 0 and 100 representing your confidence in this answer based on the data provided."
+}}
+
+If the user's question is simple and doesn't require options, leave the 'options' array empty. Do NOT wrap the JSON in Markdown delimiters like ```json. Return ONLY the raw JSON string.
+"""
         
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
         )
-        return {"response": response.text}
+        
+        # Rule-based validation and formatting
+        try:
+            raw_text = response.text.replace('```json', '').replace('```', '').strip()
+            # Find the first { and last } to ensure we only parse the JSON object
+            start_idx = raw_text.find('{')
+            end_idx = raw_text.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                raw_text = raw_text[start_idx:end_idx+1]
+            
+            data = json.loads(raw_text)
+            
+            # Construct the Markdown response
+            md_response = f"### 🎯 Problem Analysis\n{data.get('problem', 'Unable to determine problem.')}\n\n"
+            
+            reasoning = data.get('reasoning_steps', [])
+            if reasoning:
+                md_response += "### 🧠 Chain of Thought\n"
+                for i, step in enumerate(reasoning):
+                    md_response += f"{i+1}. {step}\n"
+                md_response += "\n"
+                
+            options = data.get('options', [])
+            if options:
+                md_response += "### ⚖️ Options & Analysis\n"
+                for opt in options:
+                    md_response += f"**{opt.get('name', 'Option')}**\n"
+                    pros = opt.get('pros', [])
+                    if pros:
+                        md_response += f"- **Pros:** {', '.join(pros)}\n"
+                    cons = opt.get('cons', [])
+                    if cons:
+                        md_response += f"- **Cons:** {', '.join(cons)}\n"
+                md_response += "\n"
+                
+            md_response += f"### 💡 Final Recommendation\n{data.get('recommendation', 'No distinct recommendation provided.')}\n\n"
+            md_response += f"### ✅ Confidence Score: {data.get('confidence_score', 'N/A')}/100"
+            
+            return {"response": md_response}
+        except json.JSONDecodeError:
+            # Fallback if the LLM hallucinates or fails to output valid JSON
+            return {"response": f"AI Expert Response (Raw):\n\n{response.text}"}
     except Exception as e:
         return {"response": f"AI Error: {str(e)}"}
