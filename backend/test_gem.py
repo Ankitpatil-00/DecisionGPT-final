@@ -1,11 +1,17 @@
 import os
 from dotenv import load_dotenv
-from google import genai
+import google.generativeai as genai
 import json
 import re
 
-load_dotenv('c:/DecisionGPT/decisiongpt/backend/.env')
-client = genai.Client(api_key=os.environ.get('GEMINI_API_KEY'))
+load_dotenv()
+_key = os.environ.get('GEMINI_API_KEY')
+if not _key:
+  raise RuntimeError('GEMINI_API_KEY not set in environment')
+
+# Configure the genai library globally and create a client
+genai.configure(api_key=_key)
+client = genai.Client()
 
 prompt = '''
 You are an expert data analyst AI. Analyze these dataset summary statistics:

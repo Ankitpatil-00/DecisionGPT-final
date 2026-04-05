@@ -8,6 +8,9 @@ import json
 from sklearn.linear_model import LinearRegression
 from pydantic import BaseModel
 from typing import Optional
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
 app = FastAPI(title="DecisionGPT API")
 app.add_middleware(
     CORSMiddleware,
@@ -19,6 +22,16 @@ app.add_middleware(
 datasets = {}
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+# Load GEMINI API key from environment and configure the Google generative AI client globally
+load_dotenv()
+_gemini_key = os.environ.get("GEMINI_API_KEY")
+if _gemini_key:
+    try:
+        genai.configure(api_key=_gemini_key)
+    except Exception:
+        # Non-fatal: if configure fails, per-request code will still try to instantiate the client
+        pass
 
 def verify_token(token: str = Depends(oauth2_scheme)):
     if token != "decision-gpt-secure-token":
@@ -201,14 +214,15 @@ def get_forecast_validation(dataset_id: str, value_col: str, token: str = Depend
     try:
         import os
         from dotenv import load_dotenv
-        from google import genai
-        
+        import google.generativeai as genai
+
         load_dotenv()
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing.")
-            
-        client = genai.Client(api_key=api_key)
+
+        # genai already configured at startup when available; instantiate client without passing the key
+        client = genai.Client()
         
         summary_stats = df.describe(include='all').to_string()
         
@@ -246,14 +260,14 @@ def generate_insights(dataset_id: str, token: str = Depends(verify_token)):
         import os
         import json
         from dotenv import load_dotenv
-        from google import genai
-        
+        import google.generativeai as genai
+
         load_dotenv()
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is missing.")
-            
-        client = genai.Client(api_key=api_key)
+
+        client = genai.Client()
         
         summary_stats = df.describe(include='all').to_string()
         
@@ -309,14 +323,14 @@ def chat_with_data(chat: ChatMessage, token: str = Depends(verify_token)):
     try:
         import os
         from dotenv import load_dotenv
-        from google import genai
-        
+        import google.generativeai as genai
+
         load_dotenv()
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return {"response": "Error: GEMINI_API_KEY environment variable is missing. Please provide it to enable the AI!"}
-            
-        client = genai.Client(api_key=api_key)
+
+        client = genai.Client()
         
         schema_info = f"Dataset size: {len(df)} rows. Columns: {list(df.columns)}."
         summary_stats = df.describe(include='all').to_string()
